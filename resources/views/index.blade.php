@@ -57,7 +57,7 @@
         {{-- Header --}}
         <header class="mb-6 flex items-end justify-between gap-4">
             <div>
-                <h1 class="mt-1 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">SSC Attendance Claim</h1>
+                <h1 class="mt-1 text-3xl font-bold leading-tight tracking-tight sm:text-4xl sm:text-center">SSC Attendance Claim</h1>
             </div>
             <div class="flex items-center gap-2.5">
                 @if ($total > 0)
