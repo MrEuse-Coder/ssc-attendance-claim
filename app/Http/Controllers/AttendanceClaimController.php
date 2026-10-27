@@ -31,19 +31,19 @@ class AttendanceClaimController extends Controller
             'BEED'
         ],
         'CBMA' => [
-
+'AIAS'
         ],
         'COE' => [
-
+'ENGINEERING'
         ],
         'CAS' => [
-
+'BACOMM'
         ],
         'CCJE' => [
-
+        'CRIMINOLOGY'
         ],
         'CON' => [
-
+        'NURSING'
         ],
         'CHM' => [
             'BSTM',
@@ -69,7 +69,7 @@ class AttendanceClaimController extends Controller
     ];
 
     /** Sections. Edit to match your campus. */
-    public const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
+    public const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F','G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
 
     public static function colleges(): array
     {

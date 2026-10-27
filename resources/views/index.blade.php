@@ -358,15 +358,15 @@
                             <input id="program" name="program" type="text" x-ref="prog" x-model="program" maxlength="150" required autocomplete="off"
                                    role="combobox" aria-autocomplete="list" aria-controls="program-list" :aria-expanded="open"
                                    :disabled="!college" :placeholder="college ? 'Select or type your program' : 'Select a college first'"
-                                   class="{{ $comboInp }} truncate"
+                                   class="{{ $comboInp }} truncate uppercase"
                                    @focus="openList()" @click="openList()" @input="typing()"
                                    @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)"
                                    @keydown.enter="if (open && active >= 0) { $event.preventDefault(); choose(); }"
                                    @keydown.escape="if (open) { open = false; $event.stopPropagation(); }">
-                            <button type="button" tabindex="-1" :disabled="!college" @click="toggle()" aria-label="Show programs"
+                                 <button type="button" tabindex="-1" :disabled="!college" @click="toggle()" aria-label="Show programs"
                                     class="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl text-slate-400 transition hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:text-slate-200">
                                 <svg class="h-4 w-4 transition-transform duration-200" :class="open ? 'rotate-180' : ''" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
-                            </button>
+                                    </button>
 
                             <ul id="program-list" role="listbox" x-ref="list" x-show="open && college" x-cloak x-transition.opacity.duration.120ms
                                 class="absolute inset-x-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
