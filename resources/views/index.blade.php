@@ -76,7 +76,7 @@
         </header>
 
         {{-- Stats --}}
-        <section class="mb-4 grid grid-cols-2 gap-3 sm:gap-4" aria-label="Summary">
+        <section class="mb-4  gap-3 sm:gap-4" aria-label="Summary">
             <div class="{{ $card }} px-4 py-4 sm:px-5">
                 <span class="block text-xs font-medium text-slate-500 dark:text-slate-400">Claimed today</span>
                 <b class="mt-0.5 block text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">{{ number_format($today) }}</b>
