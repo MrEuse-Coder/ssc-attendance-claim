@@ -68,10 +68,6 @@
     {{-- Stats --}}
     <section class="mb-4 grid grid-cols-2 gap-3 sm:gap-4" aria-label="Summary">
         <div class="{{ $card }} px-4 py-4 sm:px-5">
-            <span class="block text-xs font-medium text-slate-500 dark:text-slate-400">Total claims</span>
-            <b class="mt-0.5 block text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">{{ number_format($total) }}</b>
-        </div>
-        <div class="{{ $card }} px-4 py-4 sm:px-5">
             <span class="block text-xs font-medium text-slate-500 dark:text-slate-400">Claimed today</span>
             <b class="mt-0.5 block text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">{{ number_format($today) }}</b>
         </div>
@@ -256,11 +252,19 @@
     </section>
 
     {{-- Mobile FAB --}}
-    <button type="button" aria-label="New claim" @click="modal = true"
-            class="{{ $btnPrimary }} fixed bottom-[max(1.1rem,env(safe-area-inset-bottom))] right-[max(1.1rem,env(safe-area-inset-right))] z-40 inline-flex rounded-2xl px-5 py-3.5 shadow-xl sm:hidden">
-        <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1Z"/></svg>
-        New claim
-    </button>
+    <div class="flex items-center gap-2.5">
+        @if ($total > 0)
+            <button type="button" class="{{ $btnGhost }} inline-flex !text-red-500 hover:!bg-red-500/10"
+                    @click="$dispatch('confirm-delete-all')">
+                <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l.7 9.3a1 1 0 0 0 1 .7h4.6a1 1 0 0 0 1-.7L14 6"/></svg>
+                Delete all
+            </button>
+        @endif
+        <button type="button" class="{{ $btnPrimary }} hidden sm:inline-flex" @click="modal = true">
+            <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1Z"/></svg>
+            New claim
+        </button>
+    </div>
 
     {{-- New claim modal / bottom sheet --}}
     <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center"
@@ -475,6 +479,30 @@
                 <div class="mt-5 flex gap-2.5">
                     <button type="button" class="{{ $btnGhost }} inline-flex flex-1" @click="deleteUrl = null">Cancel</button>
                     <button type="submit" class="{{ $btnDanger }} inline-flex flex-1">Remove</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Delete ALL confirmation --}}
+    <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center"
+         x-data="{ open: false }" @confirm-delete-all.window="open = true" @keydown.escape.window="open = false"
+         x-show="open" x-cloak x-transition.opacity @click.self="open = false">
+        <div class="m-4 w-full max-w-sm self-center rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+             role="alertdialog" aria-modal="true" aria-labelledby="delall-title" x-show="open" x-transition>
+            <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-red-500/10 text-red-500">
+                <svg class="h-6 w-6" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l.7 9.3a1 1 0 0 0 1 .7h4.6a1 1 0 0 0 1-.7L14 6"/></svg>
+            </div>
+            <h2 id="delall-title" class="text-xl font-bold tracking-tight">Delete all claims?</h2>
+            <p class="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+                This permanently removes <strong class="font-semibold text-slate-900 dark:text-slate-100">all {{ number_format($total) }} claims</strong>, not just the ones shown. Everyone will be able to claim again.
+            </p>
+            <form method="POST" action="{{ route('claims.destroyAll') }}">
+                @csrf
+                @method('DELETE')
+                <div class="mt-5 flex gap-2.5">
+                    <button type="button" class="{{ $btnGhost }} inline-flex flex-1" @click="open = false">Cancel</button>
+                    <button type="submit" class="{{ $btnDanger }} inline-flex flex-1">Delete all</button>
                 </div>
             </form>
         </div>

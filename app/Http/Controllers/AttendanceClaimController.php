@@ -15,48 +15,32 @@ use Illuminate\View\View;
 class AttendanceClaimController extends Controller
 {
     /**
-     * Colleges and their programs. These are examples: edit them to match your campus.
-     * Programs that people type in manually are remembered and offered in the dropdown next time.
+     * Colleges and their programs. Colleges and programs that people type manually
+     * are remembered and offered in the dropdowns next time.
      */
     public const COLLEGE_PROGRAMS = [
-        'CCS' => [
-          'BSIT'
-        ],
+        'CCS'  => ['BSIT'],
         'COED' => [
-           'BTVTED',
+            'BTVTED',
             'BTLED',
             'BSED A ENGLISH',
             'BSED B FILIPINO',
             'BSED C SOCIAL STUDIES',
-            'BEED'
+            'BEED',
         ],
-        'CBMA' => [
-'AIAS'
-        ],
-        'COE' => [
-'ENGINEERING'
-        ],
-        'CAS' => [
-'BACOMM'
-        ],
-        'CCJE' => [
-        'CRIMINOLOGY'
-        ],
-        'CON' => [
-        'NURSING'
-        ],
-        'CHM' => [
-            'BSTM',
-            'BSHM'
-
-        ],
-        'COT' => [
-        'AUTOMOTIVE',
+        'CBMA' => ['AIAS'],
+        'COE'  => ['ENGINEERING'],
+        'CAS'  => ['BACOMM'],
+        'CCJE' => ['CRIMINOLOGY'],
+        'CON'  => ['NURSING'],
+        'CHM'  => ['BSTM', 'BSHM'],
+        'COT'  => [
+            'AUTOMOTIVE',
             'ELECTRICAL',
             'DRAFTING',
             'CULINARY',
             'INDUSTRIAL TECHNOLOGY',
-            'FASHION AND DESIGN'
+            'FASHION AND DESIGN',
         ],
     ];
 
@@ -69,11 +53,52 @@ class AttendanceClaimController extends Controller
     ];
 
     /** Sections. Edit to match your campus. */
-    public const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F','G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+    public const SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+
+    /** Per-request cache for collegeOptions(). */
+    private ?array $collegeCache = null;
 
     public static function colleges(): array
     {
         return array_keys(self::COLLEGE_PROGRAMS);
+    }
+
+    /** Listed colleges plus any custom colleges people typed before. */
+    private function collegeOptions(): array
+    {
+        if ($this->collegeCache !== null) {
+            return $this->collegeCache;
+        }
+
+        $listed = self::colleges();
+        $known  = array_map('mb_strtolower', $listed);
+
+        $extra = AttendanceClaim::query()
+            ->distinct()
+            ->pluck('college')
+            ->reject(fn ($c) => in_array(mb_strtolower($c), $known, true))
+            ->unique(fn ($c) => mb_strtolower($c))
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+
+        return $this->collegeCache = array_merge($listed, $extra);
+    }
+
+    /** Match a known college ignoring case; otherwise store typed colleges in UPPERCASE. */
+    private function normalizeCollege(mixed $value): mixed
+    {
+        if (!is_string($value) || $value === '') {
+            return $value;
+        }
+
+        foreach ($this->collegeOptions() as $known) {
+            if (mb_strtolower($known) === mb_strtolower($value)) {
+                return $known;
+            }
+        }
+
+        return mb_strtoupper($value);
     }
 
     /** Listed programs per college, plus any custom programs people typed before. */
@@ -88,8 +113,9 @@ class AttendanceClaimController extends Controller
 
         $options = [];
 
-        foreach (self::COLLEGE_PROGRAMS as $college => $listed) {
-            $known = array_map('mb_strtolower', $listed);
+        foreach ($this->collegeOptions() as $college) {
+            $listed = self::COLLEGE_PROGRAMS[$college] ?? [];
+            $known  = array_map('mb_strtolower', $listed);
 
             $extra = collect($custom->get($college, []))
                 ->pluck('program')
@@ -107,14 +133,15 @@ class AttendanceClaimController extends Controller
 
     public function index(Request $request): View
     {
-        $search = trim((string) $request->query('q', ''));
+        $search   = trim((string) $request->query('q', ''));
+        $colleges = $this->collegeOptions();
 
         $slot = $request->query('slot');
         $slot = (is_string($slot) && isset(AttendanceClaim::SLOTS[$slot])) ? $slot : null;
 
         // Filters ('' = not filtering)
         $college = $request->query('college');
-        $college = (is_string($college) && isset(self::COLLEGE_PROGRAMS[$college])) ? $college : '';
+        $college = (is_string($college) && in_array($college, $colleges, true)) ? $college : '';
 
         // A program filter only makes sense inside a college.
         $program = $request->query('program');
@@ -135,7 +162,10 @@ class AttendanceClaimController extends Controller
             ->when($year !== '' && $section !== '', fn ($q) => $q->where('year_section', "{$year}-{$section}"))
             ->when($year !== '' && $section === '', fn ($q) => $q->where('year_section', 'like', "{$year}-%"))
             ->when($year === '' && $section !== '', fn ($q) => $q->where('year_section', 'like', "%-{$section}"))
-            ->orderBy('year_section', 'asc')
+            ->orderBy('year_section')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('id') // tie-breaker for stable pagination
             ->simplePaginate(10)
             ->withQueryString();
 
@@ -154,7 +184,7 @@ class AttendanceClaimController extends Controller
                 ->selectRaw('slot, COUNT(*) as c')
                 ->groupBy('slot')
                 ->pluck('c', 'slot'),
-            'colleges'   => self::colleges(),
+            'colleges'   => $colleges,
             'programs'   => $this->programOptions(),
             'years'      => self::YEARS,
             'sections'   => self::SECTIONS,
@@ -170,6 +200,7 @@ class AttendanceClaimController extends Controller
             fn ($v) => is_string($v) ? preg_replace('/\s+/', ' ', trim($v)) : $v,
             $request->only(['first_name', 'last_name', 'year', 'section', 'college', 'program', 'slot'])
         );
+        $input['college'] = $this->normalizeCollege($input['college'] ?? null);
         $input['year_section'] = (
             is_string($input['year'] ?? null) && $input['year'] !== '' &&
             is_string($input['section'] ?? null) && $input['section'] !== ''
@@ -180,14 +211,14 @@ class AttendanceClaimController extends Controller
         $slotLabel = is_string($slotKey) ? (AttendanceClaim::SLOTS[$slotKey] ?? 'this slot') : 'this slot';
 
         $data = $request->validate([
-            'first_name' => ['required', 'string', 'max:100'],
-            'last_name'  => ['required', 'string', 'max:100'],
-            'year'       => ['required', Rule::in(array_keys(self::YEARS))],
-            'section'    => ['required', Rule::in(self::SECTIONS)],
-            'college'    => ['required', Rule::in(self::colleges())],
+            'first_name'   => ['required', 'string', 'max:100'],
+            'last_name'    => ['required', 'string', 'max:100'],
+            'year'         => ['required', Rule::in(array_keys(self::YEARS))],
+            'section'      => ['required', Rule::in(self::SECTIONS)],
             // free text: picked from the dropdown or typed in
-            'program'    => ['required', 'string', 'min:2', 'max:150'],
-            'slot'       => ['required', Rule::in(array_keys(AttendanceClaim::SLOTS))],
+            'college'      => ['required', 'string', 'min:2', 'max:50'],
+            'program'      => ['required', 'string', 'min:2', 'max:150'],
+            'slot'         => ['required', Rule::in(array_keys(AttendanceClaim::SLOTS))],
             'year_section' => ['nullable', 'string', 'max:20'],
         ]);
 
@@ -228,9 +259,10 @@ class AttendanceClaimController extends Controller
             'section' => $clean($request->query('section')),
             'slot'    => $clean($request->query('slot')),
         ];
+        $in['college'] = $this->normalizeCollege($in['college']);
 
         $valid = Validator::make($in, [
-            'college' => ['required', Rule::in(self::colleges())],
+            'college' => ['required', 'string', 'min:2', 'max:50'],
             'program' => ['required', 'string', 'min:2', 'max:150'],
             'year'    => ['required', Rule::in(array_keys(self::YEARS))],
             'section' => ['required', Rule::in(self::SECTIONS)],
@@ -280,5 +312,14 @@ class AttendanceClaimController extends Controller
         $claim->delete();
 
         return back()->with('success', 'Claim removed.');
+    }
+
+    public function destroyAll(): RedirectResponse
+    {
+        $count = AttendanceClaim::query()->delete();
+
+        return redirect()
+            ->route('claims.index')
+            ->with('success', "All claims removed ({$count}).");
     }
 }
