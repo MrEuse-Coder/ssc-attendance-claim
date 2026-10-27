@@ -135,7 +135,7 @@ class AttendanceClaimController extends Controller
             ->when($year !== '' && $section !== '', fn ($q) => $q->where('year_section', "{$year}-{$section}"))
             ->when($year !== '' && $section === '', fn ($q) => $q->where('year_section', 'like', "{$year}-%"))
             ->when($year === '' && $section !== '', fn ($q) => $q->where('year_section', 'like', "%-{$section}"))
-            ->latest()
+            ->orderBy('year_section', 'asc')
             ->simplePaginate(10)
             ->withQueryString();
 
