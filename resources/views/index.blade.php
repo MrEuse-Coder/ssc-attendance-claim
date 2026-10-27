@@ -57,9 +57,7 @@
     {{-- Header --}}
     <header class="mb-6 flex items-end justify-between gap-4">
         <div>
-            <div class="text-xs font-semibold uppercase tracking-[0.12em] text-indigo-600 dark:text-indigo-400">Attendance</div>
-            <h1 class="mt-1 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">Attendance Claim</h1>
-            <p class="mt-1.5 text-sm text-slate-500 dark:text-slate-400">Record claims and look up who has already claimed.</p>
+            <h1 class="mt-1 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">SSC Attendance Claim</h1>
         </div>
         <button type="button" class="{{ $btnPrimary }} hidden sm:inline-flex" @click="modal = true">
             <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1Z"/></svg>
