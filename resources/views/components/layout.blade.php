@@ -15,6 +15,7 @@
 
             // ---- New-claim form: dependent program combobox + live "already claimed" check ----
             Alpine.data('claimForm', (init) => ({
+                eventId: init.eventId,
                 college: init.college,
                 program: init.program,
                 year: init.year,
@@ -29,12 +30,51 @@
                 open: false,
                 active: -1,
                 filtering: false,
+                busy: false,
+                errors: {},
+                formError: '',
 
                 init() {
                     ['college', 'program', 'year', 'section', 'claimSlot'].forEach(k =>
-                        this.$watch(k, () => { this.serverMsg = false; this.queueCheck(); })
+                        this.$watch(k, () => { this.serverMsg = false; this.errors = {}; this.queueCheck(); })
                     );
                     this.queueCheck();
+                },
+
+                // Submit with fetch so the form stays open: keep the slot, clear everything else.
+                async submit(ev) {
+                    const form = ev.target;
+                    this.busy = true; this.errors = {}; this.formError = ''; this.serverMsg = false;
+                    try {
+                        const res = await fetch(form.action, {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            body: new FormData(form),
+                        });
+                        const d = await res.json().catch(() => ({}));
+
+                        if (res.status === 422) { this.errors = d.errors || {}; return; }
+                        if (!res.ok) {
+                            this.formError = res.status === 419
+                                ? 'Your session expired. Refresh the page and try again.'
+                                : 'Something went wrong. Please try again.';
+                            return;
+                        }
+
+                        ['first_name', 'last_name'].forEach(id => {
+                            const el = form.querySelector('#' + id);
+                            if (el) el.value = '';
+                        });
+                        this.college = ''; this.program = ''; this.year = ''; this.section = '';
+                        this.claimed = null;      // claimSlot is kept on purpose
+
+                        this.$dispatch('claim-saved', d);   // the page refreshes the list + shows the toast
+                        this.$nextTick(() => { const f = form.querySelector('#first_name'); if (f) f.focus(); });
+                    } catch (e) {
+                        this.formError = 'Could not reach the server. Check your connection and try again.';
+                    } finally {
+                        this.busy = false;
+                    }
                 },
 
                 queueCheck() {
@@ -51,6 +91,7 @@
                     if (this.checkCtrl) this.checkCtrl.abort();
                     this.checkCtrl = new AbortController();
                     const qs = new URLSearchParams({
+                        event: this.eventId,
                         college: this.college, program: program, year: this.year, section: this.section, slot: this.claimSlot,
                     });
                     try {
@@ -125,6 +166,12 @@
             // ---- Page: live search, filters, slot chips, modals ----
             Alpine.data('claims', (init) => ({
                 modal: init.hasErrors,
+                eventModal: init.eventModal,
+                eventId: init.eventId,
+                counts: init.counts,
+                total: init.total,
+                toast: { show: false, msg: '' },
+                toastTimer: null,
                 q: init.q,
                 slot: init.slot,
                 f: { ...init.filters },
@@ -137,6 +184,21 @@
                 ctrl: null,
 
                 askDelete(url, name) { this.deleteUrl = url; this.deleteName = name; },
+
+                notify(msg) {
+                    this.toast.msg = msg;
+                    this.toast.show = true;
+                    clearTimeout(this.toastTimer);
+                    this.toastTimer = setTimeout(() => { this.toast.show = false; }, 3800);
+                },
+
+                // A claim was saved from the (still open) form.
+                saved(d) {
+                    this.counts = d.counts || {};
+                    if (typeof d.total === 'number') this.total = d.total;
+                    this.notify(d.message || 'Claim saved.');
+                    this.load(location.href);
+                },
 
                 async load(url) {
                     if (this.ctrl) this.ctrl.abort();
@@ -158,6 +220,7 @@
 
                 search() {
                     const url = new URL(this.$refs.searchForm.action, location.href);
+                    url.searchParams.set('event', this.eventId); // stay inside the current event
                     if (this.q.trim()) url.searchParams.set('q', this.q.trim());
                     if (this.slot) url.searchParams.set('slot', this.slot);
                     ['college', 'program', 'year', 'section'].forEach(k => {

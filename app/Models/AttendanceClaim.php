@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttendanceClaim extends Model
 {
-    /** Attendance slots: value => label. */
+    /** Attendance slots: value => label. Every event gets all four. */
     public const SLOTS = [
         'morning_login'    => 'Morning Login',
         'morning_logout'   => 'Morning Logout',
@@ -15,7 +16,12 @@ class AttendanceClaim extends Model
         'afternoon_logout' => 'Afternoon Logout',
     ];
 
-    protected $fillable = ['first_name', 'last_name', 'year_section', 'college', 'program', 'slot'];
+    protected $fillable = ['event_id', 'first_name', 'last_name', 'year_section', 'college', 'program', 'slot'];
+
+    public function event(): BelongsTo
+    {
+        return $this->belongsTo(Event::class);
+    }
 
     public function getSlotLabelAttribute(): string
     {

@@ -40,9 +40,10 @@
     </div>
 
     <div class="mx-auto max-w-5xl px-4 pb-28 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 sm:pb-16 sm:pt-10"
-         x-data="claims({ hasErrors: @js($errors->any()), q: @js($search), slot: @js($slot ?? ''), filters: @js($filters), programs: @js($programs) })"
-         x-effect="document.documentElement.classList.toggle('overflow-hidden', modal || !!deleteUrl)"
-         @keydown.escape.window="modal = false; deleteUrl = null">
+         x-data="claims({ hasErrors: @js($errors->any()), eventModal: @js($errors->event->any()), eventId: @js($event->id), counts: @js($slotCounts), total: @js($total), q: @js($search), slot: @js($slot ?? ''), filters: @js($filters), programs: @js($programs) })"
+         x-effect="document.documentElement.classList.toggle('overflow-hidden', modal || eventModal || !!deleteUrl)"
+         @claim-saved="saved($event.detail)"
+         @keydown.escape.window="modal = false; eventModal = false; deleteUrl = null">
 
         {{-- Toast --}}
         @if (session('success'))
@@ -54,20 +55,19 @@
             </div>
         @endif
 
+        {{-- Success toast for claims saved from the open form --}}
+        <div class="fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-[70] flex max-w-[calc(100vw-1.75rem)] -translate-x-1/2 items-center gap-2.5 rounded-2xl border border-emerald-500/40 bg-white px-4 py-3 text-sm font-medium shadow-2xl dark:bg-slate-900"
+             role="status" x-show="toast.show" x-cloak x-transition.opacity.duration.300ms>
+            <svg class="h-5 w-5 shrink-0 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.7-9.3a1 1 0 0 0-1.4-1.4L9 10.58 7.7 9.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4Z" clip-rule="evenodd"/></svg>
+            <span x-text="toast.msg"></span>
+        </div>
+
         {{-- Header --}}
         <header class="mb-6 flex items-end justify-between gap-4">
             <div>
                 <h1 class="mt-1 text-3xl font-bold leading-tight tracking-tight sm:text-4xl sm:text-center">SSC Attendance Claim</h1>
             </div>
             <div class="flex items-center gap-2.5">
-                @if ($total > 0)
-                    <button type="button" aria-label="Delete all claims"
-                            class="{{ $btnGhost }} inline-flex !text-red-500 hover:!bg-red-500/10"
-                            @click="$dispatch('confirm-delete-all')">
-                        <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l.7 9.3a1 1 0 0 0 1 .7h4.6a1 1 0 0 0 1-.7L14 6"/></svg>
-                        <span class="hidden sm:inline">Delete all</span>
-                    </button>
-                @endif
                 <button type="button" class="{{ $btnPrimary }} hidden sm:inline-flex" @click="modal = true">
                     <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1Z"/></svg>
                     New claim
@@ -75,7 +75,52 @@
             </div>
         </header>
 
+        {{-- Events dropdown: every event has its own morning/afternoon login & logout --}}
+        <div class="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="Events">
+            <div class="relative min-w-0 flex-1 sm:max-w-sm sm:flex-none sm:basis-80"
+                 x-data="{ eOpen: false }" @click.outside="eOpen = false" @keydown.escape="eOpen = false">
+                <button type="button" @click="eOpen = !eOpen" aria-haspopup="listbox" :aria-expanded="eOpen" aria-label="Choose event"
+                        class="{{ $btnGhost }} flex w-full !justify-between !py-3 text-left">
+                    <span class="flex min-w-0 items-center gap-2">
+                        <svg class="h-[18px] w-[18px] shrink-0 text-indigo-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
+                        <span class="truncate">{{ $event->name }}</span>
+                    </span>
+                    <svg class="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200" :class="eOpen ? 'rotate-180' : ''" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+                </button>
 
+                <ul role="listbox" x-show="eOpen" x-cloak x-transition.opacity.duration.120ms
+                    class="absolute inset-x-0 top-full z-30 mt-1.5 max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                    @foreach ($events as $e)
+                        <li role="option" aria-selected="{{ $e->id === $event->id ? 'true' : 'false' }}">
+                            <a href="{{ route('claims.index', ['event' => $e->id]) }}"
+                               class="flex w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800 {{ $e->id === $event->id ? 'font-semibold text-indigo-600 dark:text-indigo-400' : '' }}">
+                                <span class="truncate">{{ $e->name }}</span>
+                                @if ($e->id === $event->id)
+                                    <svg class="h-4 w-4 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
+                                @endif
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+
+            <button type="button" @click="eventModal = true" class="{{ $btnGhost }} inline-flex shrink-0 !py-3" aria-label="Add event">
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1Z"/></svg>
+                <span class="hidden sm:inline">Event</span>
+            </button>
+
+            <a href="{{ route('claims.events.export', $event) }}" aria-label="Export {{ $event->name }} to Excel"
+               class="{{ $btnGhost }} inline-flex shrink-0 !py-3">
+                <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14.5V16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1.5"/></svg>
+                <span class="hidden sm:inline">Export Excel</span>
+            </a>
+
+            <button type="button" aria-label="Delete event" @click="$dispatch('confirm-delete-event')"
+                    class="{{ $btnGhost }} inline-flex shrink-0 !py-3 !text-red-500 hover:!bg-red-500/10">
+                <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l.7 9.3a1 1 0 0 0 1 .7h4.6a1 1 0 0 0 1-.7L14 6"/></svg>
+                <span class="hidden sm:inline">Delete event</span>
+            </button>
+        </div>
 
         {{-- Search (live, no reload) + mobile filter toggle --}}
         <div class="mb-3 flex gap-2.5">
@@ -155,19 +200,25 @@
             </div>
         </section>
 
-        {{-- Slot filter chips --}}
-        @php $base = array_filter(['q' => $search] + $filters); @endphp
-        <nav class="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden" aria-label="Filter by attendance slot">
+        {{-- Slot filter chips (counts are for the current event) --}}
+        @php $base = array_filter(['event' => $event->id, 'q' => $search] + $filters); @endphp
+        <nav class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="Filter by attendance slot">
             <a href="{{ route('claims.index', $base) }}"
-               class="inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition"
+               class="col-span-2 flex items-center justify-between gap-2 rounded-2xl border px-3.5 py-2.5 text-sm font-semibold transition sm:col-span-1"
                :class="slot === '' ? @js($chipOn) : @js($chipOff)" @click.prevent="setSlot('')">
-                All <i class="rounded-full px-2 py-px text-[11px] not-italic tabular-nums" :class="slot === '' ? @js($chipNumOn) : @js($chipNumOff)">{{ $total }}</i>
+                <span>All</span>
+                <i class="rounded-full px-2 py-px text-[11px] not-italic tabular-nums" x-text="total" :class="slot === '' ? @js($chipNumOn) : @js($chipNumOff)">{{ $total }}</i>
             </a>
             @foreach ($slots as $key => $label)
+                @php [$chipSession, $chipType] = explode('_', $key); @endphp
                 <a href="{{ route('claims.index', $base + ['slot' => $key]) }}"
-                   class="inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition"
+                   class="flex items-center justify-between gap-2 rounded-2xl border px-3.5 py-2 transition"
                    :class="slot === @js($key) ? @js($chipOn) : @js($chipOff)" @click.prevent="setSlot(@js($key))">
-                    {{ $label }} <i class="rounded-full px-2 py-px text-[11px] not-italic tabular-nums" :class="slot === @js($key) ? @js($chipNumOn) : @js($chipNumOff)">{{ $slotCounts[$key] ?? 0 }}</i>
+                    <span class="min-w-0 leading-tight">
+                        <small class="block text-[11px] font-medium opacity-70">{{ ucfirst($chipSession) }}</small>
+                        <b class="block text-sm font-semibold">{{ ucfirst($chipType) }}</b>
+                    </span>
+                    <i class="rounded-full px-2 py-px text-[11px] not-italic tabular-nums" x-text="counts[@js($key)] ?? 0" :class="slot === @js($key) ? @js($chipNumOn) : @js($chipNumOff)">{{ $slotCounts[$key] ?? 0 }}</i>
                 </a>
             @endforeach
         </nav>
@@ -281,7 +332,9 @@
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <h2 id="claim-title" class="text-xl font-bold tracking-tight">Claim attendance</h2>
-                        <p class="mb-4 mt-1 text-sm text-slate-500 dark:text-slate-400">Fill in the details below.</p>
+                        <p class="mb-4 mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            <span class="font-semibold text-indigo-600 dark:text-indigo-400">{{ $event->name }}</span> · Fill in the details below.
+                        </p>
                     </div>
                     <button type="button" @click="modal = false" aria-label="Close"
                             class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">
@@ -289,50 +342,69 @@
                     </button>
                 </div>
 
-                <form method="POST" action="{{ route('claims.store') }}" @submit="submitting = true"
-                      x-data="claimForm({ college: @js(old('college', '')), program: @js(old('program', '')), year: @js(old('year', '')), section: @js(old('section', '')), slot: @js(old('slot', '')), programs: @js($programs), serverMsg: @js($errors->has('year_section')), url: @js(route('claims.check')) })">
+                <form method="POST" action="{{ route('claims.store') }}" @submit.prevent="submit($event)"
+                      x-data="claimForm({ eventId: @js($event->id), college: @js(old('college', '')), program: @js(old('program', '')), year: @js(old('year', '')), section: @js(old('section', '')), slot: @js(old('slot', '')), programs: @js($programs), serverMsg: @js($errors->has('year_section')), url: @js(route('claims.check')) })">
                     @csrf
+                    <input type="hidden" name="event_id" value="{{ $event->id }}">
                     <div class="grid grid-cols-1 gap-3.5 min-[381px]:grid-cols-2">
 
-                        {{-- Slot picker --}}
-                        <fieldset class="col-span-full min-w-0">
-                            <legend class="{{ $label }} !mb-2">Attendance slot</legend>
-                            <div class="grid grid-cols-2 gap-2.5">
-                                @foreach ($slots as $key => $slotLabel)
-                                    @php [$session, $type] = explode('_', $key); @endphp
-                                    <label class="relative block cursor-pointer">
-                                        <input type="radio" name="slot" value="{{ $key }}" x-model="claimSlot" @checked(old('slot') === $key) required
-                                               class="peer absolute inset-0 h-full w-full cursor-pointer opacity-0">
-                                        <span class="flex items-center gap-2.5 rounded-2xl border-[1.5px] p-3 transition peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-slate-900"
-                                              :class="claimSlot === @js($key) ? @js($slotOn) : @js($slotOff)">
-                                        <span class="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-xl transition"
-                                              :class="claimSlot === @js($key) ? @js($icoOn) : @js($icoOff)">
-                                            @if ($session === 'morning')
-                                                <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="3.2"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7 6 6M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg>
-                                            @else
-                                                <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13a4.5 4.5 0 0 1 9 0M2.5 13h15M10 3.5v2M4 6l1.3 1.3M16 6l-1.3 1.3M5 16.5h10"/></svg>
-                                            @endif
-                                        </span>
-                                        <span class="leading-tight">
-                                            <small class="block text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ ucfirst($session) }}</small>
-                                            <b class="block text-sm font-semibold">{{ ucfirst($type) }}</b>
-                                        </span>
-                                    </span>
-                                    </label>
-                                @endforeach
+                        {{-- Slot: dropdown --}}
+                        <div class="col-span-full">
+                            <label for="slot" class="{{ $label }}">Attendance slot</label>
+                            <div class="relative"
+                                 @click.outside="sOpen = false"
+                                 @keydown.escape="sOpen = false"
+                                 x-data="{
+             sOpen: false,
+             slots: @js(collect($slots)->map(fn ($l, $k) => ['value' => $k, 'label' => $l, 'session' => explode('_', $k)[0]])->values()),
+             get sLabel() {
+                 const m = this.slots.find(x => x.value === claimSlot);
+                 return m ? m.label : '';
+             },
+             sPick(v) { claimSlot = v; this.sOpen = false; }
+         }">
+                                <input type="hidden" name="slot" :value="claimSlot">
+
+                                <button type="button" id="slot" @click="sOpen = !sOpen"
+                                        aria-haspopup="listbox" :aria-expanded="sOpen"
+                                        class="{{ $selLg }} text-left">
+                                    <span x-text="sLabel || 'Select attendance slot'" :class="sLabel ? '' : 'text-slate-400'"></span>
+                                </button>
+                                {!! $chev !!}
+
+                                <ul role="listbox" x-show="sOpen" x-cloak x-transition.opacity.duration.120ms
+                                    class="absolute inset-x-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                    <template x-for="sl in slots" :key="sl.value">
+                                        <li role="option" :aria-selected="claimSlot === sl.value">
+                                            <button type="button" @click="sPick(sl.value)"
+                                                    class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                    :class="claimSlot === sl.value ? 'font-semibold text-indigo-600 dark:text-indigo-400' : ''">
+                                                <svg x-show="sl.session === 'morning'" class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="3.2"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7 6 6M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg>
+                                                <svg x-show="sl.session !== 'morning'" class="h-[18px] w-[18px] shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13a4.5 4.5 0 0 1 9 0M2.5 13h15M10 3.5v2M4 6l1.3 1.3M16 6l-1.3 1.3M5 16.5h10"/></svg>
+                                                <span class="flex-1" x-text="sl.label"></span>
+                                                <svg x-show="claimSlot === sl.value" class="h-4 w-4 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
                             </div>
                             @error('slot') <div class="{{ $errText }}">{{ $message }}</div> @enderror
-                        </fieldset>
+                            @error('event_id') <div class="{{ $errText }}">{{ $message }}</div> @enderror
+                            <div class="{{ $errText }}" x-show="errors.slot" x-cloak x-text="errors.slot ? errors.slot[0] : ''"></div>
+                            <div class="{{ $errText }}" x-show="errors.event_id" x-cloak x-text="errors.event_id ? errors.event_id[0] : ''"></div>
+                        </div>
 
                         <div>
                             <label for="first_name" class="{{ $label }}">First name</label>
                             <input id="first_name" name="first_name" value="{{ old('first_name') }}" autocomplete="given-name" required class="{{ $inpLg }} uppercase">
                             @error('first_name') <div class="{{ $errText }}">{{ $message }}</div> @enderror
+                            <div class="{{ $errText }}" x-show="errors.first_name" x-cloak x-text="errors.first_name ? errors.first_name[0] : ''"></div>
                         </div>
                         <div>
                             <label for="last_name" class="{{ $label }}">Last name</label>
                             <input id="last_name" name="last_name" value="{{ old('last_name') }}" autocomplete="family-name" required class="{{ $inpLg }} uppercase">
                             @error('last_name') <div class="{{ $errText }}">{{ $message }}</div> @enderror
+                            <div class="{{ $errText }}" x-show="errors.last_name" x-cloak x-text="errors.last_name ? errors.last_name[0] : ''"></div>
                         </div>
 
                         {{-- College: dropdown --}}
@@ -387,6 +459,7 @@
                                 </ul>
                             </div>
                             @error('college') <div class="{{ $errText }}">{{ $message }}</div> @enderror
+                            <div class="{{ $errText }}" x-show="errors.college" x-cloak x-text="errors.college ? errors.college[0] : ''"></div>
                         </div>
 
                         {{-- Program: dropdown --}}
@@ -425,6 +498,7 @@
                                 </ul>
                             </div>
                             @error('program') <div class="{{ $errText }}">{{ $message }}</div> @enderror
+                            <div class="{{ $errText }}" x-show="errors.program" x-cloak x-text="errors.program ? errors.program[0] : ''"></div>
                         </div>
 
                         <div>
@@ -464,6 +538,7 @@
                                 </ul>
                             </div>
                             @error('year') <div class="{{ $errText }}">{{ $message }}</div> @enderror
+                            <div class="{{ $errText }}" x-show="errors.year" x-cloak x-text="errors.year ? errors.year[0] : ''"></div>
                         </div>
 
                         <div>
@@ -478,6 +553,7 @@
                                 {!! $chev !!}
                             </div>
                             @error('section') <div class="{{ $errText }}">{{ $message }}</div> @enderror
+                            <div class="{{ $errText }}" x-show="errors.section" x-cloak x-text="errors.section ? errors.section[0] : ''"></div>
                         </div>
                     </div>
 
@@ -501,6 +577,17 @@
                         </div>
                     @endif
 
+                    <div class="mt-4 flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-sm" role="alert"
+                         x-show="errors.year_section" x-cloak>
+                        <svg class="mt-px h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.2 2.6 16a1 1 0 0 0 .87 1.5h13.06A1 1 0 0 0 17.4 16L10 3.2Z"/><path d="M10 8v3.6M10 14.2h.01"/></svg>
+                        <div>
+                            <b class="mb-0.5 block font-semibold">Already claimed</b>
+                            <p class="text-slate-600 dark:text-slate-300" x-text="errors.year_section ? errors.year_section[0] : ''"></p>
+                        </div>
+                    </div>
+                    <div class="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-3.5 text-sm text-red-600 dark:text-red-400" role="alert"
+                         x-show="formError" x-cloak x-text="formError"></div>
+
                     <div class="mt-5 flex gap-2.5">
                         <button type="button" class="{{ $btnGhost }} inline-flex flex-1"
                                 @click="
@@ -513,11 +600,38 @@
             claimSlot = '';
             claimed = null;
             serverMsg = false;
-            submitting = false;
-        ">Cancel</button>
-                        <button type="submit" class="{{ $btnPrimary }} inline-flex flex-1" :disabled="submitting || !!claimed">
-                            <span x-text="submitting ? 'Submitting…' : (claimed ? 'Already claimed' : 'Submit claim')">Submit claim</span>
+            errors = {};
+            formError = '';
+            busy = false;
+        ">Close</button>
+                        <button type="submit" class="{{ $btnPrimary }} inline-flex flex-1" :disabled="busy || !!claimed">
+                            <span x-text="busy ? 'Submitting…' : (claimed ? 'Already claimed' : 'Submit claim')">Submit claim</span>
                         </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- New event modal --}}
+        <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center"
+             x-show="eventModal" x-cloak x-transition.opacity @click.self="eventModal = false"
+             x-effect="if (eventModal) $nextTick(() => { const f = document.getElementById('event_name'); if (f) f.focus(); })">
+            <div class="m-4 w-full max-w-sm self-center rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+                 role="dialog" aria-modal="true" aria-labelledby="event-title" x-show="eventModal" x-transition>
+                <h2 id="event-title" class="text-xl font-bold tracking-tight">New event</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Each event has its own morning and afternoon login and logout.</p>
+
+                <form method="POST" action="{{ route('claims.events.store') }}" class="mt-4">
+                    @csrf
+                    <label for="event_name" class="{{ $label }}">Event name</label>
+                    <input id="event_name" name="name" value="{{ $errors->event->any() ? old('name') : '' }}" required maxlength="150"
+                           placeholder="e.g. Intramurals – Day 2" autocomplete="off" class="{{ $inpLg }}">
+                    @if ($errors->event->has('name'))
+                        <div class="{{ $errText }}">{{ $errors->event->first('name') }}</div>
+                    @endif
+                    <div class="mt-5 flex gap-2.5">
+                        <button type="button" class="{{ $btnGhost }} inline-flex flex-1" @click="eventModal = false">Cancel</button>
+                        <button type="submit" class="{{ $btnPrimary }} inline-flex flex-1">Create event</button>
                     </div>
                 </form>
             </div>
@@ -551,25 +665,40 @@
             </div>
         </div>
 
-        {{-- Delete ALL confirmation --}}
+        {{-- Delete EVENT confirmation: must type DELETE --}}
         <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center"
-             x-data="{ open: false }" @confirm-delete-all.window="open = true" @keydown.escape.window="open = false"
-             x-show="open" x-cloak x-transition.opacity @click.self="open = false">
+             x-data="{ open: @js($errors->deleteEvent->any()), text: '' }"
+             @confirm-delete-event.window="open = true; text = ''"
+             @keydown.escape.window="open = false"
+             x-show="open" x-cloak x-transition.opacity @click.self="open = false"
+             x-effect="if (open) $nextTick(() => { const f = document.getElementById('confirm_delete'); if (f) f.focus(); })">
             <div class="m-4 w-full max-w-sm self-center rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-2xl dark:border-slate-800 dark:bg-slate-900"
-                 role="alertdialog" aria-modal="true" aria-labelledby="delall-title" x-show="open" x-transition>
+                 role="alertdialog" aria-modal="true" aria-labelledby="delevent-title" x-show="open" x-transition>
                 <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-red-500/10 text-red-500">
                     <svg class="h-6 w-6" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4h4v2M6 6l.7 9.3a1 1 0 0 0 1 .7h4.6a1 1 0 0 0 1-.7L14 6"/></svg>
                 </div>
-                <h2 id="delall-title" class="text-xl font-bold tracking-tight">Delete all claims?</h2>
+                <h2 id="delevent-title" class="text-xl font-bold tracking-tight">Delete this event?</h2>
                 <p class="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-                    This permanently removes <strong class="font-semibold text-slate-900 dark:text-slate-100">all {{ number_format($total) }} claims</strong>, not just the ones shown. Everyone will be able to claim again.
+                    This permanently deletes <strong class="font-semibold text-slate-900 dark:text-slate-100">{{ $event->name }}</strong>
+                    and its <strong class="font-semibold text-slate-900 dark:text-slate-100"><span x-text="total">{{ number_format($total) }}</span> <span x-text="Number(total) === 1 ? 'claim' : 'claims'">{{ \Illuminate\Support\Str::plural('claim', $total) }}</span></strong>. This cannot be undone.
                 </p>
-                <form method="POST" action="{{ route('claims.destroyAll') }}">
+                <p class="mt-2 text-sm">
+                    <a href="{{ route('claims.events.export', $event) }}" class="font-semibold text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-400">Export to Excel first</a>
+                </p>
+
+                <form method="POST" action="{{ route('claims.events.destroy', $event) }}" class="mt-4 text-left">
                     @csrf
                     @method('DELETE')
+                    <label for="confirm_delete" class="{{ $label }}">Type <b class="font-bold text-red-500">DELETE</b> to confirm</label>
+                    <input id="confirm_delete" name="confirm" x-model="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                           class="{{ $inpLg }} text-center tracking-widest">
+                    @if ($errors->deleteEvent->has('confirm'))
+                        <div class="{{ $errText }}">{{ $errors->deleteEvent->first('confirm') }}</div>
+                    @endif
                     <div class="mt-5 flex gap-2.5">
                         <button type="button" class="{{ $btnGhost }} inline-flex flex-1" @click="open = false">Cancel</button>
-                        <button type="submit" class="{{ $btnDanger }} inline-flex flex-1">Delete all</button>
+                        <button type="submit" class="{{ $btnDanger }} inline-flex flex-1"
+                                :disabled="text.trim().toUpperCase() !== 'DELETE'">Delete event</button>
                     </div>
                 </form>
             </div>
