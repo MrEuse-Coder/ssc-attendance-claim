@@ -577,6 +577,15 @@
                         </div>
                     @endif
 
+                    {{-- Success confirmation (inside the form so it is always visible, even with the keyboard open) --}}
+                    <div x-ref="successBox" class="mt-4 flex items-start gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3.5 text-sm" role="status"
+                         x-show="success" x-cloak x-transition.opacity>
+                        <svg class="mt-px h-5 w-5 shrink-0 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.7-9.3a1 1 0 0 0-1.4-1.4L9 10.58 7.7 9.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4Z" clip-rule="evenodd"/></svg>
+                        <div>
+                            <b class="mb-0.5 block font-semibold">Claim saved</b>
+                            <p class="text-slate-600 dark:text-slate-300" x-text="success"></p>
+                        </div>
+                    </div>
                     <div class="mt-4 flex items-start gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-sm" role="alert"
                          x-show="errors.year_section" x-cloak>
                         <svg class="mt-px h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.2 2.6 16a1 1 0 0 0 .87 1.5h13.06A1 1 0 0 0 17.4 16L10 3.2Z"/><path d="M10 8v3.6M10 14.2h.01"/></svg>
@@ -602,6 +611,7 @@
             serverMsg = false;
             errors = {};
             formError = '';
+            success = '';
             busy = false;
         ">Close</button>
                         <button type="submit" class="{{ $btnPrimary }} inline-flex flex-1" :disabled="busy || !!claimed">
@@ -703,5 +713,6 @@
                 </form>
             </div>
         </div>
+
     </div>
 </x-layout>

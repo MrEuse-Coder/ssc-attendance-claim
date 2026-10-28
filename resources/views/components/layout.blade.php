@@ -33,6 +33,8 @@
                 busy: false,
                 errors: {},
                 formError: '',
+                success: '',
+                successTimer: null,
 
                 init() {
                     ['college', 'program', 'year', 'section', 'claimSlot'].forEach(k =>
@@ -44,7 +46,7 @@
                 // Submit with fetch so the form stays open: keep the slot, clear everything else.
                 async submit(ev) {
                     const form = ev.target;
-                    this.busy = true; this.errors = {}; this.formError = ''; this.serverMsg = false;
+                    this.busy = true; this.errors = {}; this.formError = ''; this.serverMsg = false; this.success = '';
                     try {
                         const res = await fetch(form.action, {
                             method: 'POST',
@@ -68,13 +70,32 @@
                         this.college = ''; this.program = ''; this.year = ''; this.section = '';
                         this.claimed = null;      // claimSlot is kept on purpose
 
-                        this.$dispatch('claim-saved', d);   // the page refreshes the list + shows the toast
-                        this.$nextTick(() => { const f = form.querySelector('#first_name'); if (f) f.focus(); });
+                        this.$dispatch('claim-saved', d);   // the page refreshes the list + counts
+                        this.flashSuccess(d.message);
+
+                        // Phones: do NOT focus a field (the keyboard would pop up and hide the
+                        // confirmation) and close any open keyboard. Desktop: jump to First name.
+                        if (window.matchMedia('(pointer: fine)').matches) {
+                            this.$nextTick(() => { const f = form.querySelector('#first_name'); if (f) f.focus(); });
+                        } else if (document.activeElement && document.activeElement.blur) {
+                            document.activeElement.blur();
+                        }
                     } catch (e) {
                         this.formError = 'Could not reach the server. Check your connection and try again.';
                     } finally {
                         this.busy = false;
                     }
+                },
+
+                // Green confirmation shown inside the form, right above the buttons.
+                flashSuccess(msg) {
+                    this.success = msg || 'Claim saved.';
+                    clearTimeout(this.successTimer);
+                    this.successTimer = setTimeout(() => { this.success = ''; }, 4500);
+                    this.$nextTick(() => {
+                        const el = this.$refs.successBox;
+                        if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    });
                 },
 
                 queueCheck() {
@@ -196,7 +217,6 @@
                 saved(d) {
                     this.counts = d.counts || {};
                     if (typeof d.total === 'number') this.total = d.total;
-                    this.notify(d.message || 'Claim saved.');
                     this.load(location.href);
                 },
 
