@@ -75,13 +75,7 @@
             </div>
         </header>
 
-        {{-- Stats --}}
-        <section class="mb-4  gap-3 sm:gap-4" aria-label="Summary">
-            <div class="{{ $card }} px-4 py-4 sm:px-5">
-                <span class="block text-xs font-medium text-slate-500 dark:text-slate-400">Claimed today</span>
-                <b class="mt-0.5 block text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">{{ number_format($today) }}</b>
-            </div>
-        </section>
+
 
         {{-- Search (live, no reload) + mobile filter toggle --}}
         <div class="mb-3 flex gap-2.5">
@@ -332,148 +326,146 @@
 
                         <div>
                             <label for="first_name" class="{{ $label }}">First name</label>
-                            <input id="first_name" name="first_name" value="{{ old('first_name') }}" autocomplete="given-name" required class="{{ $inpLg }}">
+                            <input id="first_name" name="first_name" value="{{ old('first_name') }}" autocomplete="given-name" required class="{{ $inpLg }} uppercase">
                             @error('first_name') <div class="{{ $errText }}">{{ $message }}</div> @enderror
                         </div>
                         <div>
                             <label for="last_name" class="{{ $label }}">Last name</label>
-                            <input id="last_name" name="last_name" value="{{ old('last_name') }}" autocomplete="family-name" required class="{{ $inpLg }}">
+                            <input id="last_name" name="last_name" value="{{ old('last_name') }}" autocomplete="family-name" required class="{{ $inpLg }} uppercase">
                             @error('last_name') <div class="{{ $errText }}">{{ $message }}</div> @enderror
                         </div>
 
-                        {{-- College: dropdown + free text --}}
+                        {{-- College: dropdown --}}
                         <div class="col-span-full">
                             <label for="college" class="{{ $label }}">College</label>
                             <div class="relative" @click.outside="cOpen = false"
                                  x-data="{
-                                 cOpen: false,
-                                 cActive: -1,
-                                 colleges: @js($colleges),
-                                 get cOptions() {
-                                     const q = college.trim().toLowerCase();
-                                     if (!q || this.colleges.some(c => c.toLowerCase() === q)) return this.colleges;
-                                     return this.colleges.filter(c => c.toLowerCase().includes(q));
-                                 },
-                                 get cIsCustom() {
-                                     const q = college.trim().toLowerCase();
-                                     return q !== '' && !this.colleges.some(c => c.toLowerCase() === q);
-                                 },
-                                 cSame(c) { return c.toLowerCase() === college.trim().toLowerCase(); },
-                                 cTyping() {
-                                     const m = this.colleges.find(c => this.cSame(c));
-                                     if (m && m !== college) college = m;
-                                     this.cOpen = true;
-                                     this.cActive = -1;
-                                 },
-                                 cMove(d) {
-                                     if (!this.cOpen) { this.cOpen = true; return; }
-                                     const n = this.cOptions.length;
-                                     if (!n) return;
-                                     this.cActive = this.cActive < 0 ? (d > 0 ? 0 : n - 1) : (this.cActive + d + n) % n;
-                                 },
-                                 cPick(c) {
-                                     college = c;
-                                     this.cOpen = false;
-                                     this.$nextTick(() => onCollege());
-                                 }
-                             }">
-                                <input id="college" name="college" type="text" x-model="college" maxlength="50" required autocomplete="off"
-                                       role="combobox" aria-autocomplete="list" aria-controls="college-list" :aria-expanded="cOpen"
-                                       placeholder="Select or type your college"
-                                       class="{{ $comboInp }} truncate uppercase"
-                                       @focus="cOpen = true" @click="cOpen = true" @input="cTyping()" @change="onCollege()"
-                                       @keydown.arrow-down.prevent="cMove(1)" @keydown.arrow-up.prevent="cMove(-1)"
-                                       @keydown.enter="if (cOpen && cActive >= 0) { $event.preventDefault(); cPick(cOptions[cActive]); }"
-                                       @keydown.escape="if (cOpen) { cOpen = false; $event.stopPropagation(); }">
-                                <button type="button" tabindex="-1" @click="cOpen = !cOpen" aria-label="Show colleges"
-                                        class="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200">
-                                    <svg class="h-4 w-4 transition-transform duration-200" :class="cOpen ? 'rotate-180' : ''" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+             cOpen: false,
+             cActive: -1,
+             colleges: @js($colleges),
+             cSame(c) { return c.toLowerCase() === (college || '').trim().toLowerCase(); },
+             cMove(d) {
+                 if (!this.cOpen) { this.cOpen = true; return; }
+                 const n = this.colleges.length;
+                 if (!n) return;
+                 this.cActive = this.cActive < 0 ? (d > 0 ? 0 : n - 1) : (this.cActive + d + n) % n;
+             },
+             cPick(c) {
+                 college = c;
+                 this.cOpen = false;
+                 this.cActive = -1;
+                 this.$nextTick(() => onCollege());
+             }
+         }">
+                                <input type="hidden" name="college" :value="college">
+
+                                <button type="button" id="college" @click="cOpen = !cOpen"
+                                        role="combobox" aria-haspopup="listbox" aria-controls="college-list" :aria-expanded="cOpen"
+                                        @keydown.arrow-down.prevent="cMove(1)" @keydown.arrow-up.prevent="cMove(-1)"
+                                        @keydown.enter="if (cOpen && cActive >= 0) { $event.preventDefault(); cPick(colleges[cActive]); }"
+                                        @keydown.escape="if (cOpen) { cOpen = false; $event.stopPropagation(); }"
+                                        class="{{ $comboInp }} text-left uppercase">
+                                    <span class="block truncate" x-text="college || 'Select College'" :class="college ? '' : 'text-slate-400'"></span>
                                 </button>
+                                <span class="pointer-events-none absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center text-slate-400">
+            <svg class="h-4 w-4 transition-transform duration-200" :class="cOpen ? 'rotate-180' : ''" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+        </span>
 
                                 <ul id="college-list" role="listbox" x-show="cOpen" x-cloak x-transition.opacity.duration.120ms
-                                    class="absolute inset-x-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                                    <template x-for="(c, i) in cOptions" :key="c">
+                                    class="absolute inset-x-0 bottom-full z-20 mb-1.5 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                    <template x-for="(c, i) in colleges" :key="c">
                                         <li role="option" :aria-selected="cSame(c)">
                                             <button type="button"
                                                     class="flex w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm"
                                                     :class="[cActive === i ? 'bg-slate-100 dark:bg-slate-800' : '', cSame(c) ? 'font-semibold text-indigo-600 dark:text-indigo-400' : '']"
-                                                    @mousedown.prevent @mouseenter="cActive = i" @click="cPick(c)">
+                                                    @mouseenter="cActive = i" @click="cPick(c)">
                                                 <span x-text="c"></span>
                                                 <svg x-show="cSame(c)" class="h-4 w-4 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
                                             </button>
                                         </li>
                                     </template>
-                                    <li class="mt-1 border-t border-dashed border-slate-200 pt-1 dark:border-slate-700" x-show="cIsCustom">
-                                        <button type="button" @mousedown.prevent @click="cOpen = false; onCollege()"
-                                                class="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-indigo-600 hover:bg-slate-100 dark:text-indigo-400 dark:hover:bg-slate-800">
-                                            <span>Use “<span x-text="college.trim().toUpperCase()"></span>” as a custom college</span>
-                                        </button>
-                                    </li>
                                 </ul>
                             </div>
-                            <div class="mt-1.5 text-xs text-slate-500 dark:text-slate-400"
-                                 x-text="cIsCustom ? 'Custom college. It will be saved in uppercase.' : 'Pick from the list or type your own.'"></div>
                             @error('college') <div class="{{ $errText }}">{{ $message }}</div> @enderror
                         </div>
 
-                        {{-- Program: dropdown + free text --}}
+                        {{-- Program: dropdown --}}
                         <div class="col-span-full">
                             <label for="program" class="{{ $label }}">Program</label>
                             <div class="relative" @click.outside="open = false">
-                                <input id="program" name="program" type="text" x-ref="prog" x-model="program" maxlength="150" required autocomplete="off"
-                                       role="combobox" aria-autocomplete="list" aria-controls="program-list" :aria-expanded="open"
-                                       :disabled="!college" :placeholder="college ? 'Select or type your program' : 'Select a college first'"
-                                       class="{{ $comboInp }} truncate uppercase"
-                                       @focus="openList()" @click="openList()" @input="typing()"
-                                       @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)"
-                                       @keydown.enter="if (open && active >= 0) { $event.preventDefault(); choose(); }"
-                                       @keydown.escape="if (open) { open = false; $event.stopPropagation(); }">
-                                <button type="button" tabindex="-1" :disabled="!college" @click="toggle()" aria-label="Show programs"
-                                        class="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl text-slate-400 transition hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:text-slate-200">
-                                    <svg class="h-4 w-4 transition-transform duration-200" :class="open ? 'rotate-180' : ''" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+                                <input type="hidden" name="program" :value="program">
+
+                                <button type="button" id="program" :disabled="!college" @click="toggle()"
+                                        role="combobox" aria-haspopup="listbox" aria-controls="program-list" :aria-expanded="open"
+                                        @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)"
+                                        @keydown.enter="if (open && active >= 0) { $event.preventDefault(); choose(); }"
+                                        @keydown.escape="if (open) { open = false; $event.stopPropagation(); }"
+                                        class="{{ $comboInp }} text-left uppercase disabled:cursor-not-allowed disabled:opacity-50">
+            <span class="block truncate" x-text="program || (college ? 'Select your program' : 'Select a college first')"
+                  :class="program ? '' : 'text-slate-400'"></span>
                                 </button>
+                                <span class="pointer-events-none absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center text-slate-400">
+            <svg class="h-4 w-4 transition-transform duration-200" :class="open ? 'rotate-180' : ''" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>
+        </span>
 
                                 <ul id="program-list" role="listbox" x-ref="list" x-show="open && college" x-cloak x-transition.opacity.duration.120ms
-                                    class="absolute inset-x-0 top-full z-20 mt-1.5 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                    class="absolute inset-x-0 bottom-full z-20 mb-1.5 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                                     <template x-for="(p, i) in options" :key="p">
                                         <li role="option" :aria-selected="same(p)">
                                             <button type="button" data-opt
                                                     class="flex w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm"
                                                     :class="[active === i ? 'bg-slate-100 dark:bg-slate-800' : '', same(p) ? 'font-semibold text-indigo-600 dark:text-indigo-400' : '']"
-                                                    @mousedown.prevent @mouseenter="active = i" @click="pick(p)">
+                                                    @mouseenter="active = i" @click="pick(p)">
                                                 <span x-text="p"></span>
                                                 <svg x-show="same(p)" class="h-4 w-4 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
                                             </button>
                                         </li>
                                     </template>
-                                    <li class="p-3 text-center text-sm text-slate-500 dark:text-slate-400" x-show="!options.length && !program.trim()">No programs listed. Type yours.</li>
-                                    <li class="p-3 text-center text-sm text-slate-500 dark:text-slate-400" x-show="!options.length && program.trim() && !isCustom">No match in the list.</li>
-                                    <li class="mt-1 border-t border-dashed border-slate-200 pt-1 dark:border-slate-700" x-show="isCustom">
-                                        <button type="button" @mousedown.prevent @click="open = false"
-                                                class="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-indigo-600 hover:bg-slate-100 dark:text-indigo-400 dark:hover:bg-slate-800">
-                                            <span>Use “<span x-text="program.trim()"></span>” as a custom program</span>
-                                        </button>
-                                    </li>
+                                    <li class="p-3 text-center text-sm text-slate-500 dark:text-slate-400" x-show="!options.length">No programs listed for this college.</li>
                                 </ul>
                             </div>
-                            <div class="mt-1.5 text-xs text-slate-500 dark:text-slate-400" x-show="college" x-cloak
-                                 x-text="isCustom ? 'Custom program. It will be saved exactly as typed.' : 'Pick from the list or type your own.'"></div>
                             @error('program') <div class="{{ $errText }}">{{ $message }}</div> @enderror
                         </div>
 
                         <div>
                             <label for="year" class="{{ $label }}">Year</label>
-                            <div class="relative">
-                                <select id="year" name="year" required x-model="year" class="{{ $selLg }}">
-                                    <option value="" disabled>Select year</option>
-                                    @foreach ($years as $value => $yearLabel)
-                                        <option value="{{ $value }}">{{ $yearLabel }}</option>
-                                    @endforeach
-                                </select>
+                            <div class="relative"
+                                 @click.outside="yOpen = false"
+                                 @keydown.escape="yOpen = false"
+                                 x-data="{
+             yOpen: false,
+             years: @js(collect($years)->map(fn ($l, $v) => ['value' => (string) $v, 'label' => $l])->values()),
+             get yLabel() {
+                 const m = this.years.find(y => y.value === String(year));
+                 return m ? m.label : '';
+             },
+             yPick(v) { year = v; this.yOpen = false; }
+         }">
+                                <input type="hidden" name="year" :value="year">
+
+                                <button type="button" id="year" @click="yOpen = !yOpen"
+                                        aria-haspopup="listbox" :aria-expanded="yOpen"
+                                        class="{{ $selLg }} text-left">
+                                    <span x-text="yLabel || 'Select year'" :class="yLabel ? '' : 'text-slate-400'"></span>
+                                </button>
                                 {!! $chev !!}
+
+                                <ul role="listbox" x-show="yOpen" x-cloak x-transition.opacity.duration.120ms
+                                    class="absolute inset-x-0 bottom-full z-20 mb-1.5 max-h-60 overflow-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                    <template x-for="y in years" :key="y.value">
+                                        <li role="option" :aria-selected="String(year) === y.value">
+                                            <button type="button" @click="yPick(y.value)"
+                                                    class="flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                    :class="String(year) === y.value ? 'font-semibold text-indigo-600 dark:text-indigo-400' : ''">
+                                                <span x-text="y.label"></span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
                             </div>
                             @error('year') <div class="{{ $errText }}">{{ $message }}</div> @enderror
                         </div>
+
                         <div>
                             <label for="section" class="{{ $label }}">Section</label>
                             <div class="relative">
@@ -510,7 +502,19 @@
                     @endif
 
                     <div class="mt-5 flex gap-2.5">
-                        <button type="button" class="{{ $btnGhost }} inline-flex flex-1" @click="modal = false">Cancel</button>
+                        <button type="button" class="{{ $btnGhost }} inline-flex flex-1"
+                                @click="
+            modal = false;
+            $el.closest('form').querySelectorAll('#first_name, #last_name').forEach(i => i.value = '');
+            college = '';
+            program = '';
+            year = '';
+            section = '';
+            claimSlot = '';
+            claimed = null;
+            serverMsg = false;
+            submitting = false;
+        ">Cancel</button>
                         <button type="submit" class="{{ $btnPrimary }} inline-flex flex-1" :disabled="submitting || !!claimed">
                             <span x-text="submitting ? 'Submitting…' : (claimed ? 'Already claimed' : 'Submit claim')">Submit claim</span>
                         </button>

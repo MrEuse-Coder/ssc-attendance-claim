@@ -19,29 +19,32 @@ class AttendanceClaimController extends Controller
      * are remembered and offered in the dropdowns next time.
      */
     public const COLLEGE_PROGRAMS = [
-        'CCS'  => ['BSIT'],
-        'COED' => [
-            'BTVTED',
-            'BTLED',
+        'CCS [COLLEGE OF COMPUTER STUDIES]'  => ['INFORMATION TECHNOLOGY'],
+        'COED [COLLEGE OF EDUCATION]' => [
             'BSED A ENGLISH',
             'BSED B FILIPINO',
             'BSED C SOCIAL STUDIES',
+            'BTVTED',
+            'BTLED',
             'BEED',
         ],
-        'CBMA' => ['AIAS'],
-        'COE'  => ['ENGINEERING'],
-        'CAS'  => ['BACOMM'],
-        'CCJE' => ['CRIMINOLOGY'],
-        'CON'  => ['NURSING'],
-        'CHM'  => ['BSTM', 'BSHM'],
-        'COT'  => [
+        'CBMA [COLLEGE OF BUSINESS MANAGEMENT AND ACCOUNTANCY]' => ['AIAS','BSBA','ENTREPRENEURSHIP'],
+        'COE [COLLEGE OF ENGINEERING]'  => ['ENGINEERING'],
+        'CAS [COLLEGE OF ARTS AND SCIENCES]'  => ['BACOMM'],
+        'CCJE [COLLEGE OF CRIMINAL JUSTICE EDUCATION]' => ['CRIMINOLOGY'],
+        'CON [COLLEGE OF NURSING]'  => ['NURSING'],
+        'CHM [COLLEGE OF HOSPITALITY MANAGEMENT]'  => ['BSTM', 'BSHM'],
+        'COT [COLLEGE OF TECHNOLOGY]'  => [
             'AUTOMOTIVE',
             'ELECTRICAL',
             'DRAFTING',
             'CULINARY',
             'INDUSTRIAL TECHNOLOGY',
-            'FASHION AND DESIGN',
+            'FASHION AND APPAREL',
+            'ELECTRONICS',
+            'CONSTRUCTION',
         ],
+        'FISHERIES' => ['FISHERIES']
     ];
 
     /** Year levels: value => label. */
@@ -162,6 +165,7 @@ class AttendanceClaimController extends Controller
             ->when($year !== '' && $section !== '', fn ($q) => $q->where('year_section', "{$year}-{$section}"))
             ->when($year !== '' && $section === '', fn ($q) => $q->where('year_section', 'like', "{$year}-%"))
             ->when($year === '' && $section !== '', fn ($q) => $q->where('year_section', 'like', "%-{$section}"))
+            ->latest()
             ->orderBy('year_section')
             ->orderBy('last_name')
             ->orderBy('first_name')
